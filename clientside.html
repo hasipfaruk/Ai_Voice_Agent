@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Client</title>
+</head>
+<body>
+    <h1>WebSocket Audio Client</h1>
+    <button id="start">Start Conversation</button>
+    <script>
+        const startButton = document.getElementById('start');
+        let websocket, mediaRecorder, audioChunks = [];
+
+        startButton.addEventListener('click', () => {
+            websocket = new WebSocket("ws://ai.fonu.dev/ws/conversation");
+
+            websocket.onmessage = (event) => {
+                if (event.data instanceof Blob) {
+                    // Play audio response
+                    const audio = new Audio(URL.createObjectURL(event.data));
+                    audio.play();
+                } else {
+                    console.log("Server response:", event.data);
+                }
+            };
+
+            websocket.onopen = async () => {
+                console.log("WebSocket connected");
+
+                // Request microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (e) => {
+                    audioChunks.push(e.data);
+                    if (mediaRecorder.state === 'inactive') {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        websocket.send(audioBlob); // Send audio to the server
+                        audioChunks = [];
+                    }
+                };
+
+                mediaRecorder.start(1000); // Record in 1-second chunks
+            };
+
+            websocket.onclose = () => {
+                console.log("WebSocket disconnected");
+                if (mediaRecorder) {
+                    mediaRecorder.stop();
+                }
+            };
+        });
+    </script>
+</body>
+</html>
