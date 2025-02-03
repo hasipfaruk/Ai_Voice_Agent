@@ -273,13 +273,81 @@
 
 
 
+# import asyncio
+# import websockets
+# import pyaudio
+# import wave
+# import os
+# import atexit
+# import time
+# from pydub import AudioSegment
+# from pydub.playback import play
+
+# # Set up audio recording
+# def record_audio_chunk(stream, chunk_size=1024):
+#     """Record a chunk of audio."""
+#     return stream.read(chunk_size)
+
+# # Send audio to the WebSocket server in chunks
+# async def send_audio_to_server(uri):
+#     async with websockets.connect(uri) as websocket:
+#         print("Connected to WebSocket server.")
+
+#         # Set up audio recording
+#         p = pyaudio.PyAudio()
+#         stream = p.open(format=pyaudio.paInt16,
+#                         channels=1,
+#                         rate=16000,
+#                         input=True,
+#                         frames_per_buffer=1024)
+#         print("Recording...")
+
+#         try:
+#             while True:
+#                 # Record audio in chunks and send them over the WebSocket connection
+#                 audio_chunk = record_audio_chunk(stream)
+#                 await websocket.send(audio_chunk)
+
+#                 # Wait for a response (audio from the server)
+#                 response = await websocket.recv()  # Receive audio data from the server
+
+#                 # Save received audio as a .wav file
+#                 with open("received_audio.wav", 'wb') as f:
+#                     f.write(response)
+#                 print("Received audio from server, playing it...")
+
+#                 # Play the received audio
+#                 os.system("ffplay -nodisp -autoexit received_audio.wav")
+
+#         except KeyboardInterrupt:
+#             print("Recording interrupted by user.")
+#         finally:
+#             # Clean up
+#             stream.stop_stream()
+#             stream.close()
+#             p.terminate()
+
+# # Function to handle program exit and close WebSocket connection
+# def on_exit():
+#     print("Program terminating. Closing WebSocket connection.")
+
+# # Register the on_exit function to be called when the program exits
+# atexit.register(on_exit)
+
+# # Run the WebSocket client
+# uri = "ws://192.168.1.5:8000/ws/conversation"  # Your server URI (replace with actual IP)
+# try:
+#     asyncio.run(send_audio_to_server(uri))
+# except KeyboardInterrupt:
+#     print("Client program interrupted. Exiting...")
+
+
+
+
 import asyncio
 import websockets
 import pyaudio
-import wave
-import os
-import atexit
-import time
+import io
 from pydub import AudioSegment
 from pydub.playback import play
 
@@ -292,8 +360,6 @@ def record_audio_chunk(stream, chunk_size=1024):
 async def send_audio_to_server(uri):
     async with websockets.connect(uri) as websocket:
         print("Connected to WebSocket server.")
-
-        # Set up audio recording
         p = pyaudio.PyAudio()
         stream = p.open(format=pyaudio.paInt16,
                         channels=1,
@@ -304,38 +370,28 @@ async def send_audio_to_server(uri):
 
         try:
             while True:
-                # Record audio in chunks and send them over the WebSocket connection
+                # Record a chunk of audio from the microphone
                 audio_chunk = record_audio_chunk(stream)
+
+                # Send the audio chunk to the WebSocket server
                 await websocket.send(audio_chunk)
 
-                # Wait for a response (audio from the server)
-                response = await websocket.recv()  # Receive audio data from the server
+                # Wait for the bot's audio response
+                bot_audio = await websocket.recv()
 
-                # Save received audio as a .wav file
-                with open("received_audio.wav", 'wb') as f:
-                    f.write(response)
-                print("Received audio from server, playing it...")
-
-                # Play the received audio
-                os.system("ffplay -nodisp -autoexit received_audio.wav")
+                # Play the received bot's audio response
+                audio_segment = AudioSegment.from_file(io.BytesIO(bot_audio), format="wav")
+                play(audio_segment)
 
         except KeyboardInterrupt:
             print("Recording interrupted by user.")
         finally:
-            # Clean up
             stream.stop_stream()
             stream.close()
             p.terminate()
 
-# Function to handle program exit and close WebSocket connection
-def on_exit():
-    print("Program terminating. Closing WebSocket connection.")
-
-# Register the on_exit function to be called when the program exits
-atexit.register(on_exit)
-
 # Run the WebSocket client
-uri = "ws://192.168.1.5:8000/ws/conversation"  # Your server URI (replace with actual IP)
+uri = "ws://192.168.1.5:8000/ws/conversation"  # Replace with actual server URI
 try:
     asyncio.run(send_audio_to_server(uri))
 except KeyboardInterrupt:
