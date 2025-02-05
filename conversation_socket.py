@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydub import AudioSegment
 from io import BytesIO
@@ -7,6 +6,7 @@ from groq import Groq  # Import Groq SDK/Client
 from my_bot import ConversationManager, TextToSpeech, get_transcript
 import os
 import random
+import asyncio
 
 app = FastAPI()
 
@@ -17,11 +17,11 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
 
     try:
-        # Check API Keys
+        # Load API Keys
         deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
         groq_api_key = os.getenv("GROQ_API_KEY")
         if not deepgram_api_key or not groq_api_key:
-            print("Error: API keys are missing!")
+            print("Error: Missing API keys!")
             await websocket.close()
             return
 
@@ -35,9 +35,9 @@ async def websocket_endpoint(websocket: WebSocket):
         # Initialize Deepgram client
         deepgram = DeepgramClient(api_key=deepgram_api_key)
 
-        # Create a live transcription connection
+        # Create live transcription connection
         print("Initializing Deepgram live transcription...")
-        dg_connection = deepgram.listen.live.v("1")
+        dg_connection = await deepgram.listen.live.v("1")
         transcript_collector = await get_transcript(callback=None, audio_segment=None)
 
         # Initialize Groq client
@@ -54,12 +54,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 if full_sentence:
                     print(f"Human: {full_sentence}")
 
-                    # Process with Groq LLM (instead of your manager.llm)
-                    groq_response = await groq_client.generate_response(full_sentence)
+                    # Process with Groq LLM
+                    groq_response = await groq_generate_response(groq_client, full_sentence)
 
                     # Convert response to audio
                     tts = TextToSpeech()
-                    audio_bytes = await tts.speak(groq_response)  # Ensure this is async and returns bytes
+                    audio_bytes = await tts.speak(groq_response)
 
                     # Send generated speech audio back to client
                     print(f"Sending audio: {len(audio_bytes)} bytes")
@@ -110,6 +110,15 @@ async def websocket_endpoint(websocket: WebSocket):
             print("Deepgram WebSocket connection closed.")
         except Exception as e:
             print(f"Error closing Deepgram WebSocket: {e}")
+
+async def groq_generate_response(groq_client, prompt):
+    """Handles asynchronous request to Groq's LLM"""
+    try:
+        response = await groq_client.call_model(prompt)
+        return response["text"]
+    except Exception as e:
+        print(f"Error in Groq LLM: {e}")
+        return "I encountered an error."
 
 # Running the API using Uvicorn
 if __name__ == "__main__":

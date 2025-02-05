@@ -1,5 +1,3 @@
-
-
 import asyncio
 import websockets
 import pyaudio
@@ -8,7 +6,7 @@ from pydub import AudioSegment
 from pydub.playback import play
 
 # Audio Configuration
-CHUNK_SIZE = 1024
+CHUNK_SIZE = 4096  # Increased chunk size
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
@@ -41,6 +39,7 @@ async def send_audio_to_server(uri):
                     audio_chunk = record_audio_chunk(stream)
                     print(f"Sending audio chunk: {len(audio_chunk)} bytes")
                     await websocket.send(audio_chunk)
+                    await asyncio.sleep(0.1)  # Prevent overwhelming the server
 
             except websockets.exceptions.ConnectionClosed:
                 print("WebSocket connection closed.")
@@ -70,7 +69,6 @@ async def receive_audio(websocket):
             audio_data = await websocket.recv()
             if isinstance(audio_data, bytes):
                 print(f"Received {len(audio_data)} bytes of audio.")
-                # Convert audio bytes to AudioSegment and play it
                 try:
                     audio = AudioSegment.from_raw(io.BytesIO(audio_data), sample_width=2, frame_rate=RATE, channels=CHANNELS)
                     print(f"Playing received audio: {len(audio_data)} bytes")
